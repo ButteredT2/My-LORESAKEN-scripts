@@ -1,0 +1,97 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local SoundService = game:GetService("SoundService")
+local localPlayer = Players.LocalPlayer
+
+local SETTINGS = {
+    AnimationReplace = {
+        [134617723143543] = 108308837970067
+    },
+    SoundToMute = 121721906007526,
+    SoundToPlay = 86963552203595,
+    SoundVolume = 2
+}
+
+local currentAnimationTrack = nil
+local currentSound = nil
+
+local function muteSpecificSound(sound)
+    if tonumber(sound.SoundId:match("%d+$")) == SETTINGS.SoundToMute then
+        sound:Stop()
+        sound.Volume = 0
+    end
+end
+
+local function onCharacterAdded(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    
+    for _, descendant in pairs(character:GetDescendants()) do
+        if descendant:IsA("Sound") then
+            muteSpecificSound(descendant)
+        end
+    end
+    
+    character.DescendantAdded:Connect(function(descendant)
+        if descendant:IsA("Sound") then
+            muteSpecificSound(descendant)
+        end
+    end)
+    
+    humanoid.AnimationPlayed:Connect(function(track)
+        local animId = track.Animation.AnimationId
+        local numericId = tonumber(animId:match("%d+$")) or 0
+        
+        if SETTINGS.AnimationReplace[numericId] then
+            if currentAnimationTrack then currentAnimationTrack:Stop() end
+            if currentSound then currentSound:Stop() end
+            
+            local newAnim = Instance.new("Animation")
+            newAnim.AnimationId = "rbxassetid://"..SETTINGS.AnimationReplace[numericId]
+            
+            currentSound = Instance.new("Sound")
+            currentSound.SoundId = "rbxassetid://"..SETTINGS.SoundToPlay
+            currentSound.Volume = SETTINGS.SoundVolume
+            currentSound.Parent = character
+            currentSound:Play()
+            
+            track:Stop()
+            currentAnimationTrack = humanoid:LoadAnimation(newAnim)
+            currentAnimationTrack:Play()
+            
+            currentAnimationTrack.Stopped:Connect(function()
+                if currentSound then
+                    currentSound:Stop()
+                    currentSound:Destroy()
+                    currentSound = nil
+                end
+            end)
+        end
+    end)
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.Space then
+        if currentAnimationTrack then currentAnimationTrack:Stop() end
+        if currentSound then
+            currentSound:Stop()
+            currentSound:Destroy()
+            currentSound = nil
+        end
+    end
+end)
+
+localPlayer.CharacterAdded:Connect(onCharacterAdded)
+if localPlayer.Character then
+    onCharacterAdded(localPlayer.Character)
+end
+
+for _, sound in pairs(SoundService:GetDescendants()) do
+    if sound:IsA("Sound") then
+        muteSpecificSound(sound)
+    end
+end
+SoundService.DescendantAdded:Connect(function(sound)
+    if sound:IsA("Sound") then
+        muteSpecificSound(sound)
+    end
+end)
